@@ -27,10 +27,10 @@ for org in "${ORGS[@]}"; do
   # Roda dentro da workdir para que executáveis gerados (backends llvm/gcc)
   # fiquem em build/ e não sujem a raiz do repositório.
   (
-    cd "$wd"
-    ghdl -a --std=08 --workdir="$wd" "$SMOKE"
-    ghdl -e --std=08 --workdir="$wd" smoke_tb
-    ghdl -r --std=08 --workdir="$wd" smoke_tb
+    cd "$wd" &&
+      ghdl -a --std=08 --workdir="$wd" "$SMOKE" &&
+      ghdl -e --std=08 --workdir="$wd" smoke_tb &&
+      ghdl -r --std=08 --workdir="$wd" smoke_tb
   ) || erro "falha no smoke test VHDL-2008 em build/$org"
   [[ -f "$wd/work-obj08.cf" ]] || erro "build/$org/work-obj08.cf não foi gerado"
 done
