@@ -2,7 +2,9 @@
 
 Este projeto apresenta os resultados de uma comparação entre processor pipeline vs um multiciclo.
 
-A descrição e requisitos do projeto estão disponiveis em spec/ .
+A descrição e requisitos do projeto estão disponíveis em [specs/](specs/).
+
+Para preparar e verificar o ambiente (GHDL + GTKWave), veja [docs/ambiente.md](docs/ambiente.md).
 
 ---
 
