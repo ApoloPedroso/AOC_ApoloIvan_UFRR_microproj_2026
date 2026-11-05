@@ -6,11 +6,9 @@ Requisito R7 do enunciado ([specs/MicroProj.pdf](../specs/MicroProj.pdf)): VHDL-
 
 | Ferramenta | Versão | Backend / observação |
 |---|---|---|
-| SO | _a preencher_ | |
-| GHDL | _a preencher com `ghdl --version`_ | |
-| GTKWave | _a preencher com `gtkwave --version`_ | |
-
-> Preencha a tabela com a saída real dos comandos acima, depois de instalar.
+| SO | Fedora 43 | |
+| GHDL | 5.1.1 | backend GCC 15.2.1 |
+| GTKWave | 3.3.125 | |
 
 ## Instalação
 
