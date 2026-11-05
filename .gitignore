@@ -1,0 +1,10 @@
+# Artefatos de build e simulação (GHDL / GTKWave)
+build/
+*.ghw
+*.vcd
+*.cf
+*.o
+*.lst
+
+# Saída gerada pelo script run_all
+metricas.csv
