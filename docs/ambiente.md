@@ -6,18 +6,17 @@ Requisito R7 do enunciado ([specs/MicroProj.pdf](../specs/MicroProj.pdf)): VHDL-
 
 | Ferramenta | Versão | Backend / observação |
 |---|---|---|
-| SO | Windows 11 24H2 (Build 26300.9818) | via MSYS2 UCRT64 |
-| MSYS2 | 3.6.12-50c44b7c | ambiente ucrt64 |
-| GHDL | 6.0.0-4 | backend LLVM 23.1.3, compilado com GNAT 16.2.0 |
-| GTKWave | 3.3.128-1 | |
+| SO (Esta máquina) | Windows 11 (MSYS2 UCRT64) | Ambiente local de desenvolvimento |
+| GHDL | 6.0.0 | backend LLVM 23.1.3 (GNAT 16.2.0) |
+| GTKWave | 3.3.128 | x86_64 |
+| SO (Referência) | Fedora 43 | Ambiente de referência do professor |
+| GHDL | 5.1.1 | backend GCC 15.2.1 |
+| GTKWave | 3.3.125 | |
 
 ## Instalação
 
 ```bash
-# Windows — MSYS2 UCRT64 (recomendado)
-# 1. Instalar MSYS2 em https://www.msys2.org (caminho sem espaços, ex: C:\msys64)
-# 2. Abrir terminal "MSYS2 UCRT64" e rodar:
-pacman -Syu
+# Windows (MSYS2 UCRT64)
 pacman -S mingw-w64-ucrt-x86_64-ghdl-llvm mingw-w64-ucrt-x86_64-gtkwave
 
 # Fedora
@@ -27,13 +26,13 @@ sudo dnf install ghdl gtkwave
 sudo apt install ghdl gtkwave
 ```
 
+> **Nota para Windows (MSYS2):** Certifique-se de que `/ucrt64/bin` (ou `C:\msys64\ucrt64\bin`) está configurado no seu PATH ou utilize diretamente o terminal **MSYS2 UCRT64** para executar o GHDL e os scripts.
+
 ## Verificação do ambiente
 
 ```bash
 bash scripts/verifica_ambiente.sh
 ```
-
-> **Windows (MSYS2 UCRT64):** abra o terminal "MSYS2 UCRT64" e rode o comando acima a partir da raiz do repositório. O PATH correto (`/ucrt64/bin`) já estará configurado nesse terminal.
 
 O script:
 
