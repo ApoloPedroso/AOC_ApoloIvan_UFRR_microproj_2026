@@ -13,7 +13,7 @@ entity dmem is
 end entity dmem;
 architecture rtl of dmem is 
 	type ram_type is array (0 to 255) of std_logic_vector(31 downto 0); 
-	signal ram : ram_type := (others =>; (others =>; '0')); 
+	signal ram : ram_type := (others => (others => '0')); 
 begin 
 	process(clk) 
 	begin 
