@@ -30,8 +30,8 @@ begin
 			elsif we = '1' and to_integer(unsigned(waddr)) /= 0 then
 				registers(to_integer(unsigned(waddr))) <= wdata;
 			end if;
+		end if;
 		end process;
-	
 	rdata1 <= (others => '0') when to_integer(unsigned(raddr1)) = 0 else registers(to_integer(unsigned(raddr1)));
 	rdata2 <= (others => '0') when to_integer(unsigned(raddr2)) = 0 else registers(to_integer(unsigned(raddr2)));
 	
