@@ -32,8 +32,8 @@ begin
 			end if;
 		end if;
 		end process;
-	rdata1 <= (others => '0') when to_integer(unsigned(raddr1)) = 0 else registers(to_integer(unsigned(raddr1)));
-	rdata2 <= (others => '0') when to_integer(unsigned(raddr2)) = 0 else registers(to_integer(unsigned(raddr2)));
+	rdata1 <= (others => '0') when (is_X(raddr1) or to_integer(unsigned(raddr1)) = 0) else registers(to_integer(unsigned(raddr1)));
+	rdata2 <= (others => '0') when (is_X(raddr2) or to_integer(unsigned(raddr2)) = 0) else registers(to_integer(unsigned(raddr2)));
 	
-	dbg_reg_data <= (others =>'0') when to_integer(unsigned(dbg_reg_addr)) =0 else registers(to_integer(unsigned(dbg_reg_addr))); 
+	dbg_reg_data <= (others => '0') when (is_X(dbg_reg_addr) or to_integer(unsigned(dbg_reg_addr)) = 0) else registers(to_integer(unsigned(dbg_reg_addr))); 
 	end architecture rtl;
