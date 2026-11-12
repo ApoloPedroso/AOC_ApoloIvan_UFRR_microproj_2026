@@ -81,13 +81,13 @@ architecture rtl of cpu_top is
 	hazard_cycle <= (others => '0'); 
 	done <= done_reg;
 	
-	retired <= "01" when (done_reg = '0' and rst = '0') else "00"; 
+	retired <= "01" when (done_reg = '0' and rst = '0' and is_break = '0') else "00"; 
 	stage_valid <= "000000000" &  (not done_reg and not rst);
 	
 	instr <= imem(to_integer(unsigned(pc(9 downto 2))));
 	
 	pc_plus_4 <= std_logic_vector(unsigned(pc) + 4); 
-	pc_branch <= std_logic_vector(unsigned(pc_plus_4) + unsigned(sign_imm(29 downto 0) & "00"));
+	pc_branch <= std_logic_vector(unsigned(pc_plus_4) + unsigned(std_logic_vector'(sign_imm(29 downto 0) & "00")));
 	
 	pc_next <= pc_branch when (branch = '1' and alu_zero = '1') else pc_plus_4;
 	

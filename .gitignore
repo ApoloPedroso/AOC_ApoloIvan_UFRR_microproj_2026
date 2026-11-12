@@ -5,6 +5,8 @@ build/
 *.cf
 *.o
 *.lst
+*.exe
+e~*
 
 # Saída gerada pelo script run_all
 metricas.csv
