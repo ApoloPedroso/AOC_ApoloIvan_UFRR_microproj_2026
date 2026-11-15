@@ -40,7 +40,7 @@ Transfere as informações capturadas na busca de instruções (IF) para o está
 
 ---
 
-### 2.2 Registrador ID/EX (180 bits)
+### 2.2 Registrador ID/EX (186 bits)
 
 Propaga os sinais decodificados e operandos lidos para o estágio de execução (EX).
 
@@ -64,7 +64,7 @@ Propaga os sinais decodificados e operandos lidos para o estágio de execução 
 | **Endereços** | `rt` | `std_logic_vector(4 downto 0)` (5 bits) | Índice do registrador fonte/alvo `rt` (`instr[20:16]`). |
 | **Endereços** | `rd` | `std_logic_vector(4 downto 0)` (5 bits) | Índice do registrador destino `rd` (`instr[15:11]`). |
 
-**Largura total do registrador ID/EX:** $1 + 32 + 32 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 3 + 32 + 32 + 32 + 5 + 5 + 5 = \mathbf{180\text{ bits}}$.
+**Largura total do registrador ID/EX:** $1 + 32 + 32 + 7 + 3 + 96 + 15 = \mathbf{186\text{ bits}}$.
 
 ---
 

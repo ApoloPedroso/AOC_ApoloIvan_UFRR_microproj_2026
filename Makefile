@@ -19,18 +19,19 @@ TB_SRC = tb/tb_cpu.vhd
 
 CSV_FILE = metricas.csv
 
-.PHONY: all build_dirs init_csv compile_o1 run_o1_t0 compile_o2 run_o2_t0 clean
+.PHONY: all build_dirs init_csv compile_o1 run_o1_t0 compile_o2 run_o2_t0 run_o2_hazards clean
 
-all: init_csv run_o1_t0 run_o2_t0
+all: init_csv run_o1_t0 run_o2_t0 run_o2_hazards
 	@echo ""
 	@echo "======================================================================"
 	@echo " Simulacoes concluidas com sucesso! Metricas em $(CSV_FILE):"
 	@echo "======================================================================"
-	@cat $(CSV_FILE)
+	type $(CSV_FILE)
 	@echo ""
 
 build_dirs:
-	@mkdir -p $(WORKDIR_O1) $(WORKDIR_O2)
+	@if not exist "$(WORKDIR_O1)" mkdir "$(WORKDIR_O1)"
+	@if not exist "$(WORKDIR_O2)" mkdir "$(WORKDIR_O2)"
 
 init_csv:
 	@echo "org;programa;ciclos;instrucoes;CPI;IPC;ocupacao;erros" > $(CSV_FILE)
@@ -65,6 +66,42 @@ run_o2_t0: compile_o2
 		-gNUM_SLOTS=5 \
 		-gESPERA_ABORTO=false
 
+run_o2_hazards: compile_o2
+	@echo "[-] Executando teste TD - RAW..."
+	$(GHDL) -r $(FLAGS_O2) tb_cpu \
+		-gPROG_FILE="tracos/td_raw.hex" \
+		-gESPERADO_FILE="tracos/t0_esperado.txt" \
+		-gORG_NOME="O2_TD" \
+		-gNUM_SLOTS=5 \
+		-gESPERA_ABORTO=true \
+		-gTIPO_ESPERADO=1 \
+		-gHAZARD_PC_ESPERADO=00000000000000000000000000000100
+
+	@echo "[-] Executando teste TE - Estrutural..."
+	$(GHDL) -r $(FLAGS_O2) tb_cpu \
+		-gPROG_FILE="tracos/te.hex" \
+		-gESPERADO_FILE="tracos/te_esperado.txt" \
+		-gORG_NOME="O2_TE" \
+		-gNUM_SLOTS=5 \
+		-gMEM_UNIFICADA=true \
+		-gESPERA_ABORTO=true \
+		-gTIPO_ESPERADO=2 \
+		-gHAZARD_PC_ESPERADO=00000000000000000000000000001100
+
+	@echo "[-] Executando teste TC - Controle..."
+	$(GHDL) -r $(FLAGS_O2) tb_cpu \
+		-gPROG_FILE="tracos/tc.hex" \
+		-gESPERADO_FILE="tracos/t0_esperado.txt" \
+		-gORG_NOME="O2_TC" \
+		-gNUM_SLOTS=5 \
+		-gESPERA_ABORTO=true \
+		-gTIPO_ESPERADO=3 \
+		-gHAZARD_PC_ESPERADO=00000000000000000000000000001000
+
 clean:
 	@echo "[-] Limpando arquivos temporarios..."
-	@rm -rf $(BUILD_DIR) *.o *.cf $(CSV_FILE) *.ghw
+	@if exist "$(BUILD_DIR)" rmdir /s /q "$(BUILD_DIR)"
+	@if exist "*.o" del /q *.o
+	@if exist "*.cf" del /q *.cf
+	@if exist "$(CSV_FILE)" del /q "$(CSV_FILE)"
+	@if exist "*.ghw" del /q *.ghw

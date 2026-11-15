@@ -1,4 +1,4 @@
-library ieee;
+﻿library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use std.textio.all;
@@ -26,7 +26,7 @@ end entity cpu_top;
 architecture rtl of cpu_top is
 
     -- =========================================================================
-    -- Memória de Instruções (imem)
+    -- MemÃ³ria de InstruÃ§Ãµes (imem)
     -- =========================================================================
     type imem_array is array (0 to 255) of std_logic_vector(31 downto 0);
 
@@ -54,7 +54,7 @@ architecture rtl of cpu_top is
     signal imem : imem_array := load_hex(PROG_FILE);
 
     -- =========================================================================
-    -- Definição dos Registradores Entre Estágios
+    -- DefiniÃ§Ã£o dos Registradores Entre EstÃ¡gios
     -- =========================================================================
 
     -- IF/ID: 97 bits (1 + 32 + 32 + 32)
@@ -72,7 +72,7 @@ architecture rtl of cpu_top is
         instr     => (others => '0')
     );
 
-    -- ID/EX: 180 bits (1 + 32 + 32 + 3 + 2 + 5 + 32 + 32 + 32 + 5 + 5 + 5)
+    -- ID/EX: 186 bits (1 + 32 + 32 + 7 + 3 + 96 + 15)
     type reg_id_ex_t is record
         valid       : std_logic;
         pc          : std_logic_vector(31 downto 0);
@@ -176,7 +176,7 @@ architecture rtl of cpu_top is
         waddr      => (others => '0')
     );
 
-    -- Instâncias dos registradores
+    -- InstÃ¢ncias dos registradores
     signal reg_if_id      : reg_if_id_t  := REG_IF_ID_RESET;
     signal reg_if_id_next : reg_if_id_t;
 
@@ -190,10 +190,10 @@ architecture rtl of cpu_top is
     signal reg_mem_wb_next: reg_mem_wb_t;
 
     -- =========================================================================
-    -- Sinais por Estágio
+    -- Sinais por EstÃ¡gio
     -- =========================================================================
 
-    -- Estágio IF
+    -- EstÃ¡gio IF
     signal pc_reg          : std_logic_vector(31 downto 0) := (others => '0');
     signal pc_plus_4_if    : std_logic_vector(31 downto 0);
     signal pc_next_if      : std_logic_vector(31 downto 0);
@@ -202,7 +202,7 @@ architecture rtl of cpu_top is
     signal is_break_if     : std_logic;
     signal fetching_active : std_logic := '1';
 
-    -- Estágio ID
+    -- EstÃ¡gio ID
     signal ctrl_reg_write   : std_logic;
     signal ctrl_reg_dst     : std_logic;
     signal ctrl_alu_src     : std_logic;
@@ -215,39 +215,202 @@ architecture rtl of cpu_top is
     signal rf_rdata2        : std_logic_vector(31 downto 0);
     signal sign_imm_id      : std_logic_vector(31 downto 0);
 
-    -- Estágio EX
+    -- EstÃ¡gio EX
     signal ex_alu_src_b     : std_logic_vector(31 downto 0);
     signal ex_alu_result    : std_logic_vector(31 downto 0);
     signal ex_alu_zero      : std_logic;
     signal ex_waddr         : std_logic_vector(4 downto 0);
     signal ex_branch_target : std_logic_vector(31 downto 0);
 
-    -- Estágio MEM
+    -- EstÃ¡gio MEM
     signal mem_rdata        : std_logic_vector(31 downto 0);
 
-    -- Estágio WB
+    -- EstÃ¡gio WB
     signal wb_wdata         : std_logic_vector(31 downto 0);
 
     -- Controle global
     signal done_reg         : std_logic := '0';
     signal done_comb        : std_logic;
 
-begin
+    -- Controle de hazards
+    signal hazard_detect    : std_logic;
+    signal hazard_control : std_logic;
+    signal hazard_structural : std_logic;
+    signal hazard_abort_reg : std_logic := '0';
+    signal hazard_type_reg  : std_logic_vector(1 downto 0) := "00";
+    signal hazard_pc_reg    : std_logic_vector(31 downto 0) := (others => '0');
+    signal hazard_cycle_reg : unsigned(31 downto 0) := (others => '0');
+
+    signal hazard_data      : std_logic;
+
+    -- Identifica quais operandos a instruÃ§Ã£o em ID realmente utiliza.
+    signal id_uses_rs       : std_logic;
+    signal id_uses_rt       : std_logic;
+
+    -- Campos fonte da instruÃ§Ã£o em ID.
+    signal id_rs            : std_logic_vector(4 downto 0);
+    signal id_rt            : std_logic_vector(4 downto 0);
+
+    -- Contador de ciclos de execuÃ§Ã£o
+    signal cycle_count      : unsigned(31 downto 0) := (others => '0');
+
+    begin
+
+    -- ================================================================
+    -- IdentificaÃ§Ã£o dos operandos utilizados pela instruÃ§Ã£o em ID
+    -- ================================================================
+
+    -- Registradores fonte da instruÃ§Ã£o em ID.
+    id_rs <= reg_if_id.instr(25 downto 21);
+    id_rt <= reg_if_id.instr(20 downto 16);
+
+    -- Identifica quais operandos sÃ£o efetivamente utilizados.
+    process(all)
+
+    begin
+        id_uses_rs <= '0';
+        id_uses_rt <= '0';
+
+        case reg_if_id.instr(31 downto 26) is
+
+            -- InstruÃ§Ãµes tipo R: add, sub, and, or e slt.
+            when "000000" =>
+                case reg_if_id.instr(5 downto 0) is
+                    when "100000" | "100010" |
+                         "100100" | "100101" |
+                         "101010" =>
+                        id_uses_rs <= '1';
+                        id_uses_rt <= '1';
+
+                    when others =>
+                        null;
+                end case;
+
+            -- addi e lw utilizam somente rs como fonte.
+            when "001000" | "100011" =>
+                id_uses_rs <= '1';
+
+            -- sw e beq utilizam rs e rt como fontes.
+            when "101011" | "000100" =>
+                id_uses_rs <= '1';
+                id_uses_rt <= '1';
+
+            when others =>
+                null;
+
+        end case;
+    end process;
+
+        -- ================================================================
+    -- DetecÃ§Ã£o de hazard de dados RAW
+    -- ================================================================
+
+    hazard_data <= '1' when (
+        reg_if_id.valid = '1' and
+        hazard_abort_reg = '0' and
+        done_comb = '0' and
+        (
+            (
+                id_uses_rs = '1' and
+                id_rs /= "00000" and
+                (
+                    (
+                        reg_id_ex.valid = '1' and
+                        reg_id_ex.reg_write = '1' and
+                        ex_waddr /= "00000" and
+                        ex_waddr = id_rs
+                    )
+                    or
+                    (
+                        reg_ex_mem.valid = '1' and
+                        reg_ex_mem.reg_write = '1' and
+                        reg_ex_mem.waddr /= "00000" and
+                        reg_ex_mem.waddr = id_rs
+                    )
+                    or
+                    (
+                        reg_mem_wb.valid = '1' and
+                        reg_mem_wb.reg_write = '1' and
+                        reg_mem_wb.waddr /= "00000" and
+                        reg_mem_wb.waddr = id_rs
+                    )
+                )
+            )
+            or
+            (
+                id_uses_rt = '1' and
+                id_rt /= "00000" and
+                (
+                    (
+                        reg_id_ex.valid = '1' and
+                        reg_id_ex.reg_write = '1' and
+                        ex_waddr /= "00000" and
+                        ex_waddr = id_rt
+                    )
+                    or
+                    (
+                        reg_ex_mem.valid = '1' and
+                        reg_ex_mem.reg_write = '1' and
+                        reg_ex_mem.waddr /= "00000" and
+                        reg_ex_mem.waddr = id_rt
+                    )
+                    or
+                    (
+                        reg_mem_wb.valid = '1' and
+                        reg_mem_wb.reg_write = '1' and
+                        reg_mem_wb.waddr /= "00000" and
+                        reg_mem_wb.waddr = id_rt
+                    )
+                )
+            )
+        )
+    ) else '0';
 
     -- =========================================================================
-    -- Sinais de topo e detecção de conflitos (para M2 / Issues #7 a #11)
+    -- Sinais de topo e detecÃ§Ã£o de conflitos (para M2 / Issues #7 a #11)
     -- =========================================================================
-    hazard_abort <= '0';
-    hazard_type  <= "00";
-    hazard_pc    <= (others => '0');
-    hazard_cycle <= (others => '0');
+
+        -- SaÃ­das do detector de hazards
+    hazard_abort <= hazard_abort_reg;
+    hazard_type  <= hazard_type_reg;
+    hazard_pc    <= hazard_pc_reg;
+    hazard_cycle <= hazard_cycle_reg;
+
+    -- Detecta hazard estrutural quando a memÃ³ria unificada Ã© acessada por uma instruÃ§Ã£o lw/sw em MEM e outra instruÃ§Ã£o estÃ¡ em IF.
+    hazard_structural <= '1' when (
+    MEM_UNIFICADA and
+    hazard_abort_reg = '0' and
+    done_comb = '0' and
+    reg_ex_mem.valid = '1' and
+    (reg_ex_mem.mem_to_reg = '1' or reg_ex_mem.mem_write = '1') and
+    if_valid = '1'
+    ) else '0';
+
+    -- Detecta hazard de controle quando um beq tomado possui instruÃ§Ãµes mais novas nos estÃ¡gios anteriores.
+    hazard_control <= '1' when (
+        hazard_abort_reg = '0' and
+        done_comb = '0' and
+        reg_id_ex.valid = '1' and
+        reg_id_ex.branch = '1' and
+        ex_alu_zero = '1' and
+        (reg_if_id.valid = '1' or if_valid = '1')
+    ) else '0';
+
+    -- ReÃºne os hazards de dados, controle e estrutural.
+    hazard_detect <= hazard_data or hazard_control or hazard_structural;
 
     done_comb <= '1' when (reg_mem_wb.valid = '1' and reg_mem_wb.is_break = '1') else done_reg;
     done      <= done_comb;
 
-    -- retired: instruções úteis concluídas no ciclo (exclui break)
-    retired <= "01" when (reg_mem_wb.valid = '1' and reg_mem_wb.is_break = '0' and done_reg = '0' and rst = '0')
-          else "00";
+    -- retired: instruÃ§Ãµes Ãºteis concluÃ­das no ciclo (exclui break)
+        retired <= "01" when (
+        reg_mem_wb.valid = '1' and
+        reg_mem_wb.is_break = '0' and
+        done_reg = '0' and
+        rst = '0' and
+        hazard_abort_reg = '0' and
+        hazard_detect = '0'
+    ) else "00";
 
     -- stage_valid(4 downto 0): bits 4..0 = via 0 (WB..IF)
     -- Bit 4 = WB, Bit 3 = MEM, Bit 2 = EX, Bit 1 = ID, Bit 0 = IF
@@ -259,7 +422,7 @@ begin
     stage_valid(9 downto 5) <= (others => '0');
 
     -- =========================================================================
-    -- Estágio 1: IF (Busca de Instrução)
+    -- EstÃ¡gio 1: IF (Busca de InstruÃ§Ã£o)
     -- =========================================================================
     instr_if     <= imem(to_integer(unsigned(pc_reg(9 downto 2))));
     pc_plus_4_if <= std_logic_vector(unsigned(pc_reg) + 4);
@@ -274,7 +437,7 @@ begin
     reg_if_id_next.instr     <= instr_if;
 
     -- =========================================================================
-    -- Estágio 2: ID (Decodificação e Leitura de Registradores)
+    -- EstÃ¡gio 2: ID (DecodificaÃ§Ã£o e Leitura de Registradores)
     -- =========================================================================
     u_control : entity work.control
         port map (
@@ -294,7 +457,9 @@ begin
         port map (
             clk          => clk,
             rst          => rst,
-            we           => reg_mem_wb.reg_write and reg_mem_wb.valid and (not done_reg),
+            we           => reg_mem_wb.reg_write and reg_mem_wb.valid and
+                        (not done_reg) and (not hazard_abort_reg) and
+                        (not hazard_detect),
             raddr1       => reg_if_id.instr(25 downto 21),
             raddr2       => reg_if_id.instr(20 downto 16),
             waddr        => reg_mem_wb.waddr,
@@ -326,7 +491,7 @@ begin
     reg_id_ex_next.rd          <= reg_if_id.instr(15 downto 11);
 
     -- =========================================================================
-    -- Estágio 3: EX (Execução / ULA)
+    -- EstÃ¡gio 3: EX (ExecuÃ§Ã£o / ULA)
     -- =========================================================================
     ex_alu_src_b <= reg_id_ex.imm32 when reg_id_ex.alu_src = '1' else reg_id_ex.rdata2;
 
@@ -358,12 +523,14 @@ begin
     reg_ex_mem_next.waddr         <= ex_waddr;
 
     -- =========================================================================
-    -- Estágio 4: MEM (Acesso à Memória)
+    -- EstÃ¡gio 4: MEM (Acesso Ã  MemÃ³ria)
     -- =========================================================================
     u_dmem : entity work.dmem
         port map (
             clk   => clk,
-            we    => reg_ex_mem.mem_write and reg_ex_mem.valid and (not done_reg),
+            we    => reg_ex_mem.mem_write and reg_ex_mem.valid and
+            (not done_reg) and (not hazard_abort_reg) and
+            (not hazard_detect),
             addr  => reg_ex_mem.alu_result,
             wdata => reg_ex_mem.wdata_mem,
             rdata => mem_rdata
@@ -379,27 +546,67 @@ begin
     reg_mem_wb_next.waddr      <= reg_ex_mem.waddr;
 
     -- =========================================================================
-    -- Estágio 5: WB (Escrita no Banco de Registradores)
+    -- EstÃ¡gio 5: WB (Escrita no Banco de Registradores)
     -- =========================================================================
     wb_wdata <= reg_mem_wb.mem_rdata when reg_mem_wb.mem_to_reg = '1' else reg_mem_wb.alu_result;
 
     -- =========================================================================
-    -- Processo Síncrono do Pipeline (Avanço dos Registradores e PC)
+    -- Processo SÃ­ncrono do Pipeline (AvanÃ§o dos Registradores e PC)
     -- =========================================================================
     process(clk)
     begin
         if rising_edge(clk) then
+
+            -- Reset sÃ­ncrono: limpa o processador e o detector
             if rst = '1' then
                 pc_reg          <= (others => '0');
                 fetching_active <= '1';
                 done_reg        <= '0';
+
                 reg_if_id       <= REG_IF_ID_RESET;
                 reg_id_ex       <= REG_ID_EX_RESET;
                 reg_ex_mem      <= REG_EX_MEM_RESET;
                 reg_mem_wb      <= REG_MEM_WB_RESET;
+
+                hazard_abort_reg <= '0';
+                hazard_type_reg  <= "00";
+                hazard_pc_reg    <= (others => '0');
+                hazard_cycle_reg <= (others => '0');
+
+
+            -- MantÃ©m o processador congelado apÃ³s o aborto
+            elsif hazard_abort_reg = '1' then
+                null;
+
+            -- Detecta e registra o primeiro hazard
+            elsif hazard_detect = '1' then
+                hazard_abort_reg <= '1';
+
+            if hazard_data = '1' then
+                -- RAW: aponta para a instruÃ§Ã£o consumidora em ID.
+                hazard_type_reg <= "01";
+                hazard_pc_reg   <= reg_if_id.pc;
+
+            elsif hazard_structural = '1' then
+                -- Estrutural: conflito entre IF e MEM.
+                hazard_type_reg <= "10";
+                hazard_pc_reg   <= pc_reg;
+
+            else
+                -- Controle: desvio tomado com instruÃ§Ãµes mais novas.
+                hazard_type_reg <= "11";
+                hazard_pc_reg   <= reg_id_ex.pc;
+            end if;
+
+                hazard_cycle_reg <= cycle_count + 1;
+
+            -- ExecuÃ§Ã£o normal
             elsif done_reg = '0' then
+
+
                 if reg_mem_wb.valid = '1' and reg_mem_wb.is_break = '1' then
                     done_reg <= '1';
+
                 else
                     reg_mem_wb <= reg_mem_wb_next;
                     reg_ex_mem <= reg_ex_mem_next;
@@ -414,6 +621,22 @@ begin
                         end if;
                     end if;
                 end if;
+
+            end if;
+        end if;
+    end process;
+
+    -- =========================================================================
+    -- Contador de ciclos na borda de descida
+    -- =========================================================================
+    process(clk)
+    begin
+        if falling_edge(clk) then
+            if rst = '1' then
+                cycle_count <= (others => '0');
+
+            elsif hazard_abort_reg = '0' and done_reg = '0' then
+                cycle_count <= cycle_count + 1;
             end if;
         end if;
     end process;
