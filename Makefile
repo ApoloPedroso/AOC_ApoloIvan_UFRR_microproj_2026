@@ -19,15 +19,19 @@ TB_SRC = tb/tb_cpu.vhd
 
 CSV_FILE = metricas.csv
 
-.PHONY: all gera_serie_s build_dirs init_csv compile_o1 run_o1_t0 compile_o2 run_o2_t0 run_o2_hazards run_serie_s clean
+.PHONY: all gera_serie_s build_dirs init_csv compile_o1 run_o1_t0 compile_o2 run_o2_t0 run_o2_hazards run_serie_s gera_graficos clean
 
-all: gera_serie_s init_csv run_o1_t0 run_o2_t0 run_o2_hazards run_serie_s
+all: gera_serie_s init_csv run_o1_t0 run_o2_t0 run_o2_hazards run_serie_s gera_graficos
 	@echo ""
 	@echo "======================================================================"
 	@echo " Simulacoes concluidas com sucesso! Metricas em $(CSV_FILE):"
 	@echo "======================================================================"
 	@cat $(CSV_FILE) 2>/dev/null || type $(CSV_FILE)
 	@echo ""
+
+gera_graficos:
+	@echo "[-] Gerando graficos de desempenho em docs/graficos/..."
+	python scripts/gera_graficos.py
 
 gera_serie_s:
 		@echo "[-] Gerando arquivos da serie S..."
