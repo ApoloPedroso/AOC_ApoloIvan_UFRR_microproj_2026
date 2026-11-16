@@ -1,135 +1,87 @@
-# Documentação dos Registradores Entre Estágios (Organização O2)
+# Registradores entre estágios (Organização O2)
 
-Este documento descreve detalhadamente os registradores entre estágios implementados na organização **O2 (Pipeline de 5 estágios: IF, ID, EX, MEM, WB)** do processador MIPS32 para o MicroProj de Arquitetura e Organização de Computadores (DCC 301 - UFRR).
+Este documento descreve os registradores entre estágios da organização O2, que implementa um pipeline de cinco estágios.
 
----
+## Estágios do pipeline
 
-## 1. Visão Geral da Arquitetura O2
+A organização O2 utiliza cinco estágios:
 
-O processador O2 é um pipeline escalar de 5 estágios:
-1. **IF (Instruction Fetch):** Busca a instrução na memória (`imem`) e atualiza o PC.
-2. **ID (Instruction Decode):** Decodifica a instrução, gera sinais de controle e lê os operandos no banco de registradores (`regfile`).
-3. **EX (Execution):** Executa operações na ULA (`alu`), calcula o endereço de desvio e seleciona o registrador de destino.
-4. **MEM (Memory Access):** Acessa a memória de dados (`dmem`) para operações de carga (`lw`) e armazenamento (`sw`).
-5. **WB (Write Back):** Seleciona o dado final (ULA ou Memória) e grava no registrador de destino no `regfile`.
+| Estágio | Nome | Função |
+|---|---|---|
+| IF | Instruction Fetch | Busca a instrução na memória de instruções. |
+| ID | Instruction Decode | Decodifica a instrução e lê os registradores de origem. |
+| EX | Execute | Executa a operação na ALU ou calcula endereços e desvios. |
+| MEM | Memory Access | Realiza acesso à memória de dados quando necessário. |
+| WB | Write Back | Escreve o resultado no banco de registradores. |
 
-Para sincronizar e isolar cada estágio por ciclo de clock, foram definidos quatro registradores síncronos com atualização na borda de subida (`rising_edge(clk)`):
-- **IF/ID**
-- **ID/EX**
-- **EX/MEM**
-- **MEM/WB**
+Entre os cinco estágios existem quatro registradores de pipeline: IF/ID, ID/EX, EX/MEM e MEM/WB.
 
-Cada registrador inclui um bit de validade (`valid`) que rastreia se a instrução presente no registrador é válida ou se trata de uma bolha/estágio inativo (como durante o reset ou no esvaziamento do pipeline após `break`).
+## Registradores entre estágios
 
----
+Cada registrador armazena as informações necessárias para que a instrução continue sua execução no estágio seguinte.
 
-## 2. Especificação e Larguras dos Registradores
+| Registrador | Largura | Transferência |
+|---|---:|---|
+| IF/ID | 97 bits | IF → ID |
+| ID/EX | 186 bits | ID → EX |
+| EX/MEM | 140 bits | EX → MEM |
+| MEM/WB | 105 bits | MEM → WB |
 
-### 2.1 Registrador IF/ID (97 bits)
+As larguras correspondem à quantidade total de bits armazenados em cada registrador, incluindo os sinais de controle, dados e indicadores de validade.
 
-Transfere as informações capturadas na busca de instruções (IF) para o estágio de decodificação (ID).
+Os registradores são atualizados na borda de subida do clock.
 
-| Campo | Tipo / Largura | Descrição |
-| :--- | :---: | :--- |
-| `valid` | `std_logic` (1 bit) | `'1'` se há uma instrução válida buscada; `'0'` em reset ou após o término da busca. |
-| `pc` | `std_logic_vector(31 downto 0)` (32 bits) | Endereço (PC) da instrução atual (usado para rastreamento de conflitos `hazard_pc`). |
-| `pc_plus_4` | `std_logic_vector(31 downto 0)` (32 bits) | Endereço sequencial $PC + 4$, utilizado no cálculo do endereço de desvio. |
-| `instr` | `std_logic_vector(31 downto 0)` (32 bits) | Palavra da instrução de 32 bits obtida da memória de instruções. |
+## Indicadores de validade dos estágios
 
-**Largura total do registrador IF/ID:** $1 + 32 + 32 + 32 = \mathbf{97\text{ bits}}$.
+O sinal `stage_valid(9 downto 0)` informa quais estágios contêm instruções válidas.
 
----
+A utilização dos bits é:
 
-### 2.2 Registrador ID/EX (186 bits)
+| Bit | Estágio |
+|---:|---|
+| 0 | IF |
+| 1 | ID |
+| 2 | EX |
+| 3 | MEM |
+| 4 | WB |
+| 9 a 5 | Reservados, mantidos em zero |
 
-Propaga os sinais decodificados e operandos lidos para o estágio de execução (EX).
+Assim, os cinco bits menos significativos representam os estágios do pipeline, do IF ao WB.
 
-| Categoria | Campo | Tipo / Largura | Descrição |
-| :--- | :--- | :---: | :--- |
-| **Status** | `valid` | `std_logic` (1 bit) | Validade da instrução no estágio EX. |
-| **PC** | `pc` | `std_logic_vector(31 downto 0)` (32 bits) | PC da instrução. |
-| **PC** | `pc_plus_4` | `std_logic_vector(31 downto 0)` (32 bits) | $PC + 4$ para cálculo de branch target. |
-| **Controle WB** | `reg_write` | `std_logic` (1 bit) | Habilitação de escrita no banco de registradores. |
-| **Controle WB** | `mem_to_reg` | `std_logic` (1 bit) | Seleção da fonte de escrita (`'0'` = ULA, `'1'` = Memória). |
-| **Controle WB** | `is_break` | `std_logic` (1 bit) | Indica instrução `break` (fim da execução do programa). |
-| **Controle MEM** | `branch` | `std_logic` (1 bit) | Habilitação de desvio condicional (`beq`). |
-| **Controle MEM** | `mem_write` | `std_logic` (1 bit) | Habilitação de escrita na memória de dados (`sw`). |
-| **Controle EX** | `reg_dst` | `std_logic` (1 bit) | Seleção do registrador de destino (`'0'` = `rt`, `'1'` = `rd`). |
-| **Controle EX** | `alu_src` | `std_logic` (1 bit) | Seleção do operando B da ULA (`'0'` = `rdata2`, `'1'` = imediato). |
-| **Controle EX** | `alu_control`| `std_logic_vector(2 downto 0)` (3 bits) | Operação da ULA (ADD, SUB, AND, OR, SLT). |
-| **Dados** | `rdata1` | `std_logic_vector(31 downto 0)` (32 bits) | Valor lido de `Reg[rs]`. |
-| **Dados** | `rdata2` | `std_logic_vector(31 downto 0)` (32 bits) | Valor lido de `Reg[rt]`. |
-| **Dados** | `imm32` | `std_logic_vector(31 downto 0)` (32 bits) | Imediato de 16 bits estendido em sinal para 32 bits. |
-| **Endereços** | `rs` | `std_logic_vector(4 downto 0)` (5 bits) | Índice do registrador fonte `rs` (`instr[25:21]`). |
-| **Endereços** | `rt` | `std_logic_vector(4 downto 0)` (5 bits) | Índice do registrador fonte/alvo `rt` (`instr[20:16]`). |
-| **Endereços** | `rd` | `std_logic_vector(4 downto 0)` (5 bits) | Índice do registrador destino `rd` (`instr[15:11]`). |
+Quando um bit está em `1`, o respectivo estágio contém uma instrução válida. Quando está em `0`, não há uma instrução válida naquele estágio.
 
-**Largura total do registrador ID/EX:** $1 + 32 + 32 + 7 + 3 + 96 + 15 = \mathbf{186\text{ bits}}$.
+Após o encerramento registrado da execução (`done_reg`), os indicadores de validade são zerados.
 
----
+## Contagem de instruções concluídas
 
-### 2.3 Registrador EX/MEM (140 bits)
+O sinal `retired` representa a quantidade de instruções concluídas na organização O2.
 
-Propaga os resultados da ULA, dados para gravação na memória e sinais de controle para o estágio de memória (MEM).
+Uma instrução é contabilizada quando chega ao estágio WB e atende simultaneamente às seguintes condições:
 
-| Categoria | Campo | Tipo / Largura | Descrição |
-| :--- | :--- | :---: | :--- |
-| **Status** | `valid` | `std_logic` (1 bit) | Validade da instrução no estágio MEM. |
-| **PC** | `pc` | `std_logic_vector(31 downto 0)` (32 bits) | PC da instrução. |
-| **Controle WB** | `reg_write` | `std_logic` (1 bit) | Habilitação de escrita no banco de registradores. |
-| **Controle WB** | `mem_to_reg` | `std_logic` (1 bit) | Seleção de dado (`'0'` = ULA, `'1'` = Memória). |
-| **Controle WB** | `is_break` | `std_logic` (1 bit) | Sinal de término `break`. |
-| **Controle MEM** | `branch` | `std_logic` (1 bit) | Flag de branch (`beq`). |
-| **Controle MEM** | `mem_write` | `std_logic` (1 bit) | Habilitação de escrita em `dmem`. |
-| **Dados** | `branch_target` | `std_logic_vector(31 downto 0)` (32 bits) | Endereço de destino do desvio ($PC + 4 + \text{offset} \ll 2$). |
-| **Dados** | `zero` | `std_logic` (1 bit) | Indicador de igualdade / resultado zero da ULA. |
-| **Dados** | `alu_result` | `std_logic_vector(31 downto 0)` (32 bits) | Resultado do cálculo da ULA (ou endereço de memória). |
-| **Dados** | `wdata_mem` | `std_logic_vector(31 downto 0)` (32 bits) | Dado a ser gravado na memória (`rdata2` vindo de ID/EX). |
-| **Endereços** | `waddr` | `std_logic_vector(4 downto 0)` (5 bits) | Endereço do registrador de destino selecionado (`rd` ou `rt`). |
+- O estágio WB contém uma instrução válida.
+- A instrução não é `break`.
+- O encerramento registrado (`done_reg`) ainda não ocorreu.
+- Não existe aborto registrado por hazard (`hazard_abort_reg`).
+- Não existe hazard detectado no ciclo atual (`hazard_detect`).
 
-**Largura total do registrador EX/MEM:** $1 + 32 + 1 + 1 + 1 + 1 + 1 + 32 + 1 + 32 + 32 + 5 = \mathbf{140\text{ bits}}$.
+A instrução `break` não é contabilizada como instrução concluída.
 
----
+## Encerramento da execução
 
-### 2.4 Registrador MEM/WB (105 bits)
+O encerramento é sinalizado quando a instrução `break` chega ao estágio WB.
 
-Armazena os dados finais para escrita no banco de registradores durante o estágio WB.
+O sinal `done_comb` indica essa condição de forma combinacional. Na borda de subida seguinte, o encerramento é registrado em `done_reg`.
 
-| Categoria | Campo | Tipo / Largura | Descrição |
-| :--- | :--- | :---: | :--- |
-| **Status** | `valid` | `std_logic` (1 bit) | Validade da instrução no estágio WB. |
-| **PC** | `pc` | `std_logic_vector(31 downto 0)` (32 bits) | PC da instrução. |
-| **Controle WB** | `reg_write` | `std_logic` (1 bit) | Habilitação de escrita no banco de registradores. |
-| **Controle WB** | `mem_to_reg` | `std_logic` (1 bit) | Seleção entre memória e ULA. |
-| **Controle WB** | `is_break` | `std_logic` (1 bit) | Sinalizador de conclusão do programa. |
-| **Dados** | `mem_rdata` | `std_logic_vector(31 downto 0)` (32 bits) | Dado lido da memória de dados (`dmem`). |
-| **Dados** | `alu_result` | `std_logic_vector(31 downto 0)` (32 bits) | Resultado da ULA. |
-| **Endereços** | `waddr` | `std_logic_vector(4 downto 0)` (5 bits) | Endereço do registrador de escrita no `regfile`. |
+Após o registro do encerramento, o pipeline deixa de avançar e os estágios são indicados como inválidos por meio de `stage_valid`.
 
-**Largura total do registrador MEM/WB:** $1 + 32 + 1 + 1 + 1 + 32 + 32 + 5 = \mathbf{105\text{ bits}}$.
+## Aborto por hazard
 
----
+Quando a organização O2 detecta um hazard que exige aborto, o sinal `hazard_abort` informa a ocorrência e os dados associados identificam o tipo e o endereço da instrução envolvida.
 
-## 3. Semântica de Validade e Saídas de Controle
+O aborto registrado impede o avanço do pipeline e evita que instruções posteriores produzam alterações indevidas no banco de registradores ou na memória.
 
-### 3.1 `stage_valid(9 downto 0)`
-Conforme a especificação R3:
-- Os bits `4 downto 0` representam a via 0 na ordem **WB..IF**:
-  - `stage_valid(0)`: Validade do estágio **IF** (`if_valid`)
-  - `stage_valid(1)`: Validade do estágio **ID** (`reg_if_id.valid`)
-  - `stage_valid(2)`: Validade do estágio **EX** (`reg_id_ex.valid`)
-  - `stage_valid(3)`: Validade do estágio **MEM** (`reg_ex_mem.valid`)
-  - `stage_valid(4)`: Validade do estágio **WB** (`reg_mem_wb.valid`)
-- Os bits `9 downto 5` são reservados para a via 1 (fixados em `0`).
-- Quando `rst = '1'` ou após `done = '1'`, os bits são zerados ou congelados conforme o estado.
+O projeto verifica três situações de hazard:
 
-### 3.2 Instruções Concluídas (`retired`)
-- Apenas instruções válidas que chegam ao estágio final **WB** são consideradas concluídas.
-- A instrução `break` não conta como instrução útil no cálculo do CPI (conforme especificação R1 e Seção 1.3).
-- Portanto:
-  - `retired <= "01"` quando `reg_mem_wb.valid = '1' and reg_mem_wb.is_break = '0' and done_reg = '0' and rst = '0'`.
-  - Caso contrário, `retired <= "00"`.
-
-### 3.3 Finalização e Congelamento (`done`)
-- Ao alcançar o estágio WB, a instrução `break` ativa combinacionalmente `done <= '1'`.
-- Na borda de subida seguinte do clock, o sinal `done_reg` é registrado como `'1'`, congelando permanentemente o PC, os registradores entre estágios, a memória e o banco de registradores até o próximo reset.
+- **RAW (Read After Write):** conflito de dependência de dados entre instruções.
+- **Estrutural:** disputa por recurso de hardware, como o acesso simultâneo à memória unificada.
+- **Controle:** ocorrência de desvio tomado com instruções mais novas no pipeline.

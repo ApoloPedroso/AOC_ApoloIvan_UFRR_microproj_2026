@@ -19,9 +19,9 @@ TB_SRC = tb/tb_cpu.vhd
 
 CSV_FILE = metricas.csv
 
-.PHONY: all build_dirs init_csv compile_o1 run_o1_t0 compile_o2 run_o2_t0 run_o2_hazards clean
+.PHONY: all gera_serie_s build_dirs init_csv compile_o1 run_o1_t0 compile_o2 run_o2_t0 run_o2_hazards run_serie_s clean
 
-all: init_csv run_o1_t0 run_o2_t0 run_o2_hazards
+all: gera_serie_s init_csv run_o1_t0 run_o2_t0 run_o2_hazards run_serie_s
 	@echo ""
 	@echo "======================================================================"
 	@echo " Simulacoes concluidas com sucesso! Metricas em $(CSV_FILE):"
@@ -29,12 +29,16 @@ all: init_csv run_o1_t0 run_o2_t0 run_o2_hazards
 	type $(CSV_FILE)
 	@echo ""
 
+gera_serie_s:
+		@echo "[-] Gerando arquivos da serie S..."
+		python scripts/gera_serie_s.py
+
 build_dirs:
 	@if not exist "$(WORKDIR_O1)" mkdir "$(WORKDIR_O1)"
 	@if not exist "$(WORKDIR_O2)" mkdir "$(WORKDIR_O2)"
 
 init_csv:
-	@echo "org;programa;ciclos;instrucoes;CPI;IPC;ocupacao;erros" > $(CSV_FILE)
+	@echo org;programa;ciclos;instrucoes;CPI;IPC;ocupacao;slot0;slot1;slot2;slot3;slot4;erros> $(CSV_FILE)
 
 compile_o1: build_dirs
 	@echo "[-] Compilando fontes do Monociclo (O1)..."
@@ -70,7 +74,7 @@ run_o2_hazards: compile_o2
 	@echo "[-] Executando teste TD - RAW..."
 	$(GHDL) -r $(FLAGS_O2) tb_cpu \
 		-gPROG_FILE="tracos/td_raw.hex" \
-		-gESPERADO_FILE="tracos/t0_esperado.txt" \
+		-gESPERADO_FILE="tracos/td_raw_esperado.txt" \
 		-gORG_NOME="O2_TD" \
 		-gNUM_SLOTS=5 \
 		-gESPERA_ABORTO=true \
@@ -91,13 +95,28 @@ run_o2_hazards: compile_o2
 	@echo "[-] Executando teste TC - Controle..."
 	$(GHDL) -r $(FLAGS_O2) tb_cpu \
 		-gPROG_FILE="tracos/tc.hex" \
-		-gESPERADO_FILE="tracos/t0_esperado.txt" \
+		-gESPERADO_FILE="tracos/tc_esperado.txt" \
 		-gORG_NOME="O2_TC" \
 		-gNUM_SLOTS=5 \
 		-gESPERA_ABORTO=true \
 		-gTIPO_ESPERADO=3 \
 		-gHAZARD_PC_ESPERADO=00000000000000000000000000001000
 
+
+run_serie_s: compile_o1 compile_o2
+	@echo "[-] Executando serie S em O1 e O2..."
+	$(GHDL) -r $(FLAGS_O1) tb_cpu -gPROG_FILE="tracos/s5.hex" -gESPERADO_FILE="tracos/s5_esperado.txt" -gORG_NOME="S5_O1" -gNUM_SLOTS=1 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O1) tb_cpu -gPROG_FILE="tracos/s10.hex" -gESPERADO_FILE="tracos/s10_esperado.txt" -gORG_NOME="S10_O1" -gNUM_SLOTS=1 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O1) tb_cpu -gPROG_FILE="tracos/s20.hex" -gESPERADO_FILE="tracos/s20_esperado.txt" -gORG_NOME="S20_O1" -gNUM_SLOTS=1 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O1) tb_cpu -gPROG_FILE="tracos/s50.hex" -gESPERADO_FILE="tracos/s50_esperado.txt" -gORG_NOME="S50_O1" -gNUM_SLOTS=1 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O1) tb_cpu -gPROG_FILE="tracos/s100.hex" -gESPERADO_FILE="tracos/s100_esperado.txt" -gORG_NOME="S100_O1" -gNUM_SLOTS=1 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O1) tb_cpu -gPROG_FILE="tracos/s200.hex" -gESPERADO_FILE="tracos/s200_esperado.txt" -gORG_NOME="S200_O1" -gNUM_SLOTS=1 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O2) tb_cpu -gPROG_FILE="tracos/s5.hex" -gESPERADO_FILE="tracos/s5_esperado.txt" -gORG_NOME="S5_O2" -gNUM_SLOTS=5 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O2) tb_cpu -gPROG_FILE="tracos/s10.hex" -gESPERADO_FILE="tracos/s10_esperado.txt" -gORG_NOME="S10_O2" -gNUM_SLOTS=5 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O2) tb_cpu -gPROG_FILE="tracos/s20.hex" -gESPERADO_FILE="tracos/s20_esperado.txt" -gORG_NOME="S20_O2" -gNUM_SLOTS=5 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O2) tb_cpu -gPROG_FILE="tracos/s50.hex" -gESPERADO_FILE="tracos/s50_esperado.txt" -gORG_NOME="S50_O2" -gNUM_SLOTS=5 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O2) tb_cpu -gPROG_FILE="tracos/s100.hex" -gESPERADO_FILE="tracos/s100_esperado.txt" -gORG_NOME="S100_O2" -gNUM_SLOTS=5 -gESPERA_ABORTO=false
+	$(GHDL) -r $(FLAGS_O2) tb_cpu -gPROG_FILE="tracos/s200.hex" -gESPERADO_FILE="tracos/s200_esperado.txt" -gORG_NOME="S200_O2" -gNUM_SLOTS=5 -gESPERA_ABORTO=false
 clean:
 	@echo "[-] Limpando arquivos temporarios..."
 	@if exist "$(BUILD_DIR)" rmdir /s /q "$(BUILD_DIR)"

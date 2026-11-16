@@ -1,4 +1,4 @@
-﻿library ieee;
+library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use std.textio.all;
@@ -327,13 +327,6 @@ architecture rtl of cpu_top is
                         reg_ex_mem.waddr /= "00000" and
                         reg_ex_mem.waddr = id_rs
                     )
-                    or
-                    (
-                        reg_mem_wb.valid = '1' and
-                        reg_mem_wb.reg_write = '1' and
-                        reg_mem_wb.waddr /= "00000" and
-                        reg_mem_wb.waddr = id_rs
-                    )
                 )
             )
             or
@@ -353,13 +346,6 @@ architecture rtl of cpu_top is
                         reg_ex_mem.reg_write = '1' and
                         reg_ex_mem.waddr /= "00000" and
                         reg_ex_mem.waddr = id_rt
-                    )
-                    or
-                    (
-                        reg_mem_wb.valid = '1' and
-                        reg_mem_wb.reg_write = '1' and
-                        reg_mem_wb.waddr /= "00000" and
-                        reg_mem_wb.waddr = id_rt
                     )
                 )
             )

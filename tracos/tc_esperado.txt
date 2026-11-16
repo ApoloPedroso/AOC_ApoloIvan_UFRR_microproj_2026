@@ -1,0 +1,3 @@
+# Registradores esperados apos o aborto de controle
+3 00000000
+4 00000000

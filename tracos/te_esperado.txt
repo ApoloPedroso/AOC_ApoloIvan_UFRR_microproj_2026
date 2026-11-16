@@ -1,1 +1,5 @@
-# Registradores esperados para o traco TE
+# Registradores esperados apos o aborto estrutural
+1 00000000
+2 00000000
+3 00000000
+4 00000000
