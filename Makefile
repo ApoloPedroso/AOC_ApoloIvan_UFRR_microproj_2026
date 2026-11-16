@@ -26,7 +26,7 @@ all: gera_serie_s init_csv run_o1_t0 run_o2_t0 run_o2_hazards run_serie_s
 	@echo "======================================================================"
 	@echo " Simulacoes concluidas com sucesso! Metricas em $(CSV_FILE):"
 	@echo "======================================================================"
-	type $(CSV_FILE)
+	@cat $(CSV_FILE) 2>/dev/null || type $(CSV_FILE)
 	@echo ""
 
 gera_serie_s:
@@ -34,11 +34,10 @@ gera_serie_s:
 		python scripts/gera_serie_s.py
 
 build_dirs:
-	@if not exist "$(WORKDIR_O1)" mkdir "$(WORKDIR_O1)"
-	@if not exist "$(WORKDIR_O2)" mkdir "$(WORKDIR_O2)"
+	@mkdir -p $(WORKDIR_O1) $(WORKDIR_O2)
 
 init_csv:
-	@echo org;programa;ciclos;instrucoes;CPI;IPC;ocupacao;slot0;slot1;slot2;slot3;slot4;erros> $(CSV_FILE)
+	@echo "org;programa;ciclos;instrucoes;CPI;IPC;ocupacao;slot0;slot1;slot2;slot3;slot4;erros" > $(CSV_FILE)
 
 compile_o1: build_dirs
 	@echo "[-] Compilando fontes do Monociclo (O1)..."
@@ -119,8 +118,4 @@ run_serie_s: compile_o1 compile_o2
 	$(GHDL) -r $(FLAGS_O2) tb_cpu -gPROG_FILE="tracos/s200.hex" -gESPERADO_FILE="tracos/s200_esperado.txt" -gORG_NOME="S200_O2" -gNUM_SLOTS=5 -gESPERA_ABORTO=false
 clean:
 	@echo "[-] Limpando arquivos temporarios..."
-	@if exist "$(BUILD_DIR)" rmdir /s /q "$(BUILD_DIR)"
-	@if exist "*.o" del /q *.o
-	@if exist "*.cf" del /q *.cf
-	@if exist "$(CSV_FILE)" del /q "$(CSV_FILE)"
-	@if exist "*.ghw" del /q *.ghw
+	@rm -rf $(BUILD_DIR) *.o *.cf $(CSV_FILE) *.ghw 2>/dev/null || true
